@@ -4,220 +4,19 @@
 #include <algorithm>
 #include <optional>
 #include <cassert>
+#include <address_differ.h>
 
-enum class DIRECTION
+/*
+ * @brief Сортирует массив адресов, если он не сортирован. Сортировка прводится по порядковому номеру в списке
+ * @param vector Исходный вектор.
+*/
+void SortIfNot( std::vector< Address >& vector )
 {
-    UP = -1, DOWN = 1, NONE = 0,
-};
-
-struct Diff
-{
-    int shift;
-    DIRECTION dir;
-    std::size_t position;
-};
-
-enum class OPERATION_TYPE
-{
-    ADDED, DELETED, CHANGED, MOVED,
-};
-
-template < typename ValueType >
-struct OperationData
-{
-    OPERATION_TYPE type;
-    ValueType value;
-    std::optional< ValueType > new_value;
-    size_t position_start;
-    std::optional< size_t > position_end;
-
-    bool operator==( const OperationData& rhs ) const
+    auto less_address_sort = []( const Address& a, const Address& b ) { return a.mPosition < b.mPosition; } ;
+    if( !std::is_sorted( vector.begin(),vector.end(), less_address_sort ) )
     {
-        return this->type == rhs.type &&
-               this->value == rhs.value &&
-               this->new_value == rhs.new_value &&
-               this->position_start == rhs.position_start &&
-               this->position_end == rhs.position_end;
+        std::sort( vector.begin(), vector.end(), less_address_sort );
     }
-};
-
-template < typename ValueType >
-struct CompareResult
-{
-    std::vector<OperationData<ValueType>> added_operations;
-    std::vector<OperationData<ValueType>> deleted_operations;
-    std::vector<OperationData<ValueType>> chanded_operations;
-    std::vector<OperationData<ValueType>> moved_operations;
-};
-
-struct Address
-{
-    std::string value;
-    int id;
-
-    bool operator==( const Address& rhs ) const
-    {
-        return this->value == rhs.value &&
-               this->id == rhs.id;
-    }
-};
-
-bool hasShifts(std::vector<Diff> shifts) {
-    for( auto& diff : shifts )
-    {
-        if( diff.shift != 0 )
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-// Получить список позиций, на которых поставлены новые элементы в массиве update, относительно массива old.
-template < typename ValueType >
-std::vector< size_t > get_new_elements_positions( const std::vector<ValueType>& old, const std::vector<ValueType>& updated )
-{
-    std::vector< size_t > result;
-    result.reserve( updated.size() );
-
-    for( size_t i = 0; i < updated.size(); ++i )
-    {
-        if( auto it = std::find( old.begin(), old.end(), updated[ i ] );
-            it == old.end() )
-        {
-            result.push_back( i );
-        }
-    }
-
-    return result;
-}
-
-
-// Сформировать список отличий списка updated от списка old
-template < typename ValueType >
-std::vector<Diff> diffs( const std::vector<ValueType>& old, const std::vector<ValueType>& updated)
-{
-    std::vector<Diff> result;
-
-    for( std::size_t i = 0; i < updated.size(); ++i)
-    {
-
-        for( std::size_t j = 0; j < old.size(); ++j )
-        {
-            if( updated[i] == old[j] )
-            {
-                DIRECTION current_dirrection;
-                if( i < j ) current_dirrection = DIRECTION::UP;
-                else if( i > j ) current_dirrection = DIRECTION::DOWN;
-                else current_dirrection = DIRECTION::NONE;
-                result.push_back( { std::abs(int(i - j)), current_dirrection, i } );
-                break;
-            }
-        }
-    }
-    return result;
-}
-
-template < typename ValueType >
-void move(std::vector<ValueType>& vec, int position, int shift, DIRECTION dir)
-{
-    for( int i = position; i != position + shift * static_cast<int>(dir); i += static_cast<int>(dir))
-    {
-       std::swap(vec[i], vec[i+int(dir)]) ;
-    }
-}
-
-template < typename ValueType >
-CompareResult<ValueType> compare( std::vector<ValueType> old, std::vector<ValueType> updated )
-{
-    std::vector<OperationData<ValueType>> added_operations;
-    added_operations.reserve(updated.size());
-    std::vector<OperationData<ValueType>> deleted_operations;
-    deleted_operations.reserve(old.size());
-    std::vector<OperationData<ValueType>> chanded_operations;
-    chanded_operations.reserve(old.size());
-    std::vector<OperationData<ValueType>> moved_operations;
-    moved_operations.reserve(old.size());
-
-
-    // Добавление новых элементов в старый список, которые есть в обновленном.
-    for( auto new_elem_position : get_new_elements_positions( old, updated ) )
-    {
-        old.insert( old.begin() + new_elem_position, updated[new_elem_position] );
-        added_operations.push_back({OPERATION_TYPE::ADDED, updated[new_elem_position], std::nullopt, new_elem_position, std::nullopt});
-    }
-
-    // Удаление элементов старого списка, которых нет в обновленном.
-    auto deleted_elem = get_new_elements_positions( updated, old );
-    for( auto new_elem_position : deleted_elem )
-    {
-        if( auto it = std::find_if( added_operations.begin(), added_operations.end(), [&new_elem_position] (const OperationData<ValueType>& el) { return el.position_start == new_elem_position - 1; } );
-            it !=  added_operations.end()  )
-        {
-            chanded_operations.push_back( { OPERATION_TYPE::CHANGED, old[new_elem_position], it->value, new_elem_position - 1, std::nullopt } );
-            added_operations.erase(it);
-        }
-        else
-        {
-            deleted_operations.push_back({ OPERATION_TYPE::DELETED, old[new_elem_position], std::nullopt, new_elem_position, std::nullopt});
-        }
-    }
-
-    old.erase(
-        std::remove_if(
-            old.begin(),
-            old.end(),
-            [&]( auto& elem )
-                {
-                    auto idx = distance(begin(old), find(begin(old), end(old), elem));
-                    return std::find( deleted_elem.begin(), deleted_elem.end(), idx ) != deleted_elem.end();
-                }),
-             old.end());
-
-    auto shifts = diffs(old, updated);
-
-    while( hasShifts(shifts) )
-    {
-       int highest = 0;
-       for( std::size_t i = 0; i < shifts.size(); ++i )
-       {
-           if( shifts[i].shift > shifts[highest].shift || (shifts[i].shift == shifts[highest].shift && shifts[i].dir == DIRECTION::UP) )
-           {
-               highest = i;
-           }
-       }
-
-        for( std::size_t j = 0; j < old.size(); ++j)
-        {
-            if(old[j] == updated[highest])
-            {
-                moved_operations.push_back( { OPERATION_TYPE::MOVED, old[j], std::nullopt,  j, size_t( j + shifts[highest].shift * int(shifts[highest].dir) ) } );
-                move(old, j, shifts[highest].shift,shifts[highest].dir );
-                break;
-            }
-        }
-        shifts = diffs(old, updated);
-    }
-
-
-    /*
-    for( const auto& val : added_operations )
-    {
-        std::cout << val.value << "  added in position " << val.position_start << std::endl;
-    }
-    for( const auto& val : deleted_operations )
-    {
-        std::cout << val.value << "  deleted " << std::endl;
-    }
-    for( const auto& val : chanded_operations )
-    {
-        std::cout << val.value << " changed to " << val.new_value.value() << std::endl;
-    }
-    for( const auto& val : moved_operations )
-    {
-        std::cout << val.value << "  moved to position " << val.position_end.value() << std::endl;
-    }*/
-    return CompareResult<ValueType>{ std::move( added_operations ), std::move( deleted_operations ), std::move( chanded_operations ), std::move( moved_operations ),};
 }
 
 void test_full_delete_address()
@@ -225,23 +24,154 @@ void test_full_delete_address()
     std::cout << "test_full_delete_address" <<std::endl;
     auto old = std::vector<Address>
     {
-        { "first", 1 },
-        { "second", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
     };
     auto updated = std::vector<Address>{};
 
+    SortIfNot( old );
+    SortIfNot( updated );
+
     std::vector<OperationData<Address>> added_operations;
-    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "first", 1 }, std::nullopt, 0, std::nullopt}, {OPERATION_TYPE::DELETED, { "second", 2 }, std::nullopt, 1, std::nullopt}, {OPERATION_TYPE::DELETED, { "third", 3 }, std::nullopt, 2, std::nullopt}, };
+    std::vector<OperationData<Address>> deleted_operations{
+        {OPERATION_TYPE::DELETED, { "first", 1, 0 }, std::nullopt, 0, std::nullopt},
+        {OPERATION_TYPE::DELETED, { "second", 2, 1 }, std::nullopt, 1, std::nullopt},
+        {OPERATION_TYPE::DELETED, { "third", 3, 2 }, std::nullopt, 2, std::nullopt}, };
     std::vector<OperationData<Address>> chanded_operations;
     std::vector<OperationData<Address>> moved_operations;
 
-    auto res = compare(old, updated);
+    auto res = DifferAddress().Compare( old, updated );
 
-    assert(res.added_operations == added_operations);
-    assert(res.deleted_operations == deleted_operations);
-    assert(res.chanded_operations == chanded_operations);
-    assert(res.moved_operations == moved_operations);
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_address_from_the_beginning()
+{
+    std::cout << "test_delete_address_from_the_beginning" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+
+    SortIfNot( old );
+    SortIfNot( updated );
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "first", 1, 0 }, std::nullopt, 0, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_address_from_the_end()
+{
+    std::cout << "test_delete_address_from_the_end" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 }
+    };
+
+    SortIfNot( old );
+    SortIfNot( updated );
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "third", 3, 2 }, std::nullopt, 2, std::nullopt}, };
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_address_from_the_middle()
+{
+    std::cout << "test_delete_address_from_the_middle" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "third", 3, 2 }
+    };
+
+    SortIfNot( old );
+    SortIfNot( updated );
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "second", 2, 1 }, std::nullopt, 1, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_address_from_the_begining_and_end()
+{
+    std::cout << "test_delete_address_from_the_middle" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "second", 2, 1 },
+    };
+
+    SortIfNot( old );
+    SortIfNot( updated );
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{
+        {OPERATION_TYPE::DELETED, { "first", 1, 0 }, std::nullopt, 0, std::nullopt},
+        {OPERATION_TYPE::DELETED, { "third", 3, 2 }, std::nullopt, 3, std::nullopt}, };
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
 }
 
 void test_full_add_address()
@@ -250,22 +180,124 @@ void test_full_add_address()
     auto old = std::vector<Address>{};
     auto updated = std::vector<Address>
     {
-        { "first", 1 },
-        { "second", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
     };
 
-    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED, { "first", 1 }, std::nullopt, 0, std::nullopt}, {OPERATION_TYPE::ADDED, { "second", 2 }, std::nullopt, 1, std::nullopt}, {OPERATION_TYPE::ADDED, { "third", 3 }, std::nullopt, 2, std::nullopt}, };
+    std::vector<OperationData<Address>> added_operations{
+        {OPERATION_TYPE::ADDED, { "first", 1, 0 }, std::nullopt, 0, std::nullopt},
+        {OPERATION_TYPE::ADDED, { "second", 2, 1 }, std::nullopt, 1, std::nullopt},
+        {OPERATION_TYPE::ADDED, { "third", 3, 2 }, std::nullopt, 2, std::nullopt}, };
     std::vector<OperationData<Address>> deleted_operations;
     std::vector<OperationData<Address>> chanded_operations;
     std::vector<OperationData<Address>> moved_operations;
 
-    auto res = compare(old, updated);
+    auto res = DifferAddress().Compare( old, updated );
 
-    assert(res.added_operations == added_operations);
-    assert(res.deleted_operations == deleted_operations);
-    assert(res.chanded_operations == chanded_operations);
-    assert(res.moved_operations == moved_operations);
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_add_address_at_the_beginning()
+{
+    std::cout << "test_add_address_at_the_beginning" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "new_el", 4, 0 },
+        { "first", 1, 1 },
+        { "second", 2, 2 },
+        { "third", 3, 3 }
+    };
+
+    SortIfNot( old );
+    SortIfNot( updated );
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED, { "new_el", 4, 0 }, std::nullopt, 0, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_add_address_at_the_end()
+{
+    std::cout << "test_add_address_at_the_end" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 },
+    };
+    auto updated = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 },
+        { "new_el", 4, 3 }
+    };
+
+    SortIfNot( old );
+    SortIfNot( updated );
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED,  { "new_el", 4, 3 }, std::nullopt, 3, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_add_address_at_the_middle()
+{
+    std::cout << "test_add_address_at_the_middle" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 },
+    };
+    auto updated = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "new_el", 4, 1 },
+        { "second", 2, 2 },
+        { "third", 3, 3 },
+    };
+
+    SortIfNot( old );
+    SortIfNot( updated );
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED,  { "new_el", 4, 1 }, std::nullopt, 1, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
 }
 
 void test_change_address()
@@ -273,28 +305,31 @@ void test_change_address()
     std::cout << "test_change_address" <<std::endl;
     auto old = std::vector<Address>
     {
-        { "first", 1 },
-        { "second", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
     };
     auto updated = std::vector<Address>
     {
-        { "first", 1 },
-        { "HI", 4 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "HI", 2, 1 },
+        { "third", 3, 2 }
     };
+
+    SortIfNot( old );
+    SortIfNot( updated );
 
     std::vector<OperationData<Address>> added_operations;
     std::vector<OperationData<Address>> deleted_operations;
-    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "second", 2 }, Address{ "HI", 4 }, 1, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "second", 2, 1 }, Address{ "HI", 2, 1 }, 1, std::nullopt} };
     std::vector<OperationData<Address>> moved_operations;
 
-    auto res = compare(old, updated);
+    auto res = DifferAddress().Compare( old, updated );
 
-    assert(res.added_operations == added_operations);
-    assert(res.deleted_operations == deleted_operations);
-    assert(res.chanded_operations == chanded_operations);
-    assert(res.moved_operations == moved_operations);
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
 }
 
 void test_moved_address()
@@ -302,44 +337,44 @@ void test_moved_address()
     std::cout << "test_moved_address" <<std::endl;
     auto old = std::vector<Address>
     {
-        { "first", 1 },
-        { "second", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
     };
     auto updated = std::vector<Address>
     {
-        { "third", 3 },
-        { "first", 1 },
-        { "second", 2 }
+        { "third", 3, 0 },
+        { "first", 1, 1 },
+        { "second", 2, 2 }
     };
 
     std::vector<OperationData<Address>> added_operations;
     std::vector<OperationData<Address>> deleted_operations;
     std::vector<OperationData<Address>> chanded_operations;
-    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, { "third", 3 }, std::nullopt,  2, 0 } };
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, { "third", 3, 0 }, std::nullopt,  2, 0 } };
 
-    auto res = compare(old, updated);
+    auto res = DifferAddress().Compare( old, updated );
 
-    assert(res.added_operations == added_operations);
-    assert(res.deleted_operations == deleted_operations);
-    assert(res.chanded_operations == chanded_operations);
-    assert(res.moved_operations == moved_operations);
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
 }
 
-void test_same_address()
+void test_no_changes()
 {
-    std::cout << "test_same_address" <<std::endl;
+    std::cout << "test_no_changes" <<std::endl;
     auto old = std::vector<Address>
     {
-        { "first", 1 },
-        { "second", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
     };
     auto updated = std::vector<Address>
     {
-        { "first", 1 },
-        { "second", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
     };
 
     std::vector<OperationData<Address>> added_operations;
@@ -347,12 +382,12 @@ void test_same_address()
     std::vector<OperationData<Address>> chanded_operations;
     std::vector<OperationData<Address>> moved_operations;
 
-    auto res = compare(old, updated);
+    auto res = DifferAddress().Compare( old, updated );
 
-    assert(res.added_operations == added_operations);
-    assert(res.deleted_operations == deleted_operations);
-    assert(res.chanded_operations == chanded_operations);
-    assert(res.moved_operations == moved_operations);
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
 }
 
 void test_repeat_string_address()
@@ -360,40 +395,492 @@ void test_repeat_string_address()
     std::cout << "test_repeat_string_address" <<std::endl;
     auto old = std::vector<Address>
     {
-        { "first", 1 },
-        { "second", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
     };
     auto updated = std::vector<Address>
     {
-        { "first", 1 },
-        { "Hi", 2 },
-        { "third", 3 }
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 },
+        { "third", 4, 3 }
+    };
+
+    std::vector<OperationData<Address>> added_operations { {OPERATION_TYPE::ADDED,  { "third", 4, 3 }, std::nullopt, 3, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_and_add_element()
+{
+    std::cout << "run_test_delete_and_add_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "new", 4, 1 }
+    };
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED, { "new", 4, 1 }, std::nullopt, 1, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "second", 2, 1 }, std::nullopt, 1, std::nullopt}, {OPERATION_TYPE::DELETED, { "third", 3, 2 }, std::nullopt, 2, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_and_add_element2()
+{
+    std::cout << "run_test_delete_and_add_element2" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "new", 4, 0 },
+        { "second", 2, 1 },
+    };
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED, { "new", 4, 0 }, std::nullopt, 0, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations{
+        {OPERATION_TYPE::DELETED, { "first", 1, 0 }, std::nullopt, 0, std::nullopt},
+        {OPERATION_TYPE::DELETED, { "third", 3, 2 }, std::nullopt, 2, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_and_change_element()
+{
+    std::cout << "test_delete_and_change_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "second", 2, 0 },
+        { "new", 3, 1 }
+    };
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "first", 1, 0 }, std::nullopt, 0, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "third", 3, 2 }, Address{  "new", 3, 1 }, 1, std::nullopt} };
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_and_move_element()
+{
+    std::cout << "test_delete_and_move_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "third", 3, 0 },
+        { "second", 2, 1 },
+    };
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "first", 1, 0 }, std::nullopt, 0, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations;
+    /* Почему в moved_operations position_start = 1, хотя в old элемент third имеет позицию - 2?
+     * Ответ: Если следовать редакционному предписанию (т.е последовательности действий, которые позволят из массива 1, сделать массив 2,
+     * то сначала будут выполнять операции добавления и удаления. Соответственно, после этих операций элемент "third" будет на позиции 1.
+     * С которой он будет перемещен на позицию 0.*/
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, { "third", 3, 0 }, std::nullopt,  1, 0 } };
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_add_and_change_element()
+{
+    std::cout << "test_add_and_change_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "HI", 1, 0 },
+        { "new_el", 4, 1 },
+        { "second", 2, 2 },
+        { "third", 3, 3 }
+    };
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED, { "new_el", 4, 1 }, std::nullopt, 1, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "first", 1, 0 }, Address{ "HI", 1, 0 }, 0, std::nullopt} };
+    std::vector<OperationData<Address>> moved_operations;
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_add_and_move_element()
+{
+    std::cout << "test_add_and_move_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "new_el", 4, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 },
+        { "first", 1, 3 }
+    };
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED, { "new_el", 4, 0 }, std::nullopt, 0, std::nullopt} } ;
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations;
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, { "first", 1, 3 }, std::nullopt,  1, 3 } };
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_change_and_move_element()
+{
+    std::cout << "test_change_and_move_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "HI", 2, 0 },
+        { "third", 3, 1 },
+        { "first", 1, 2 }
     };
 
     std::vector<OperationData<Address>> added_operations;
     std::vector<OperationData<Address>> deleted_operations;
-    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "second", 2 }, Address{ "Hi", 2 }, 1, std::nullopt} };;
-    std::vector<OperationData<Address>> moved_operations;
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "second", 2, 1 }, Address{ "HI", 2, 0 }, 0, std::nullopt} };
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, { "first", 1, 2 }, std::nullopt,  0, 2 } };
 
-    auto res = compare(old, updated);
+    auto res = DifferAddress().Compare( old, updated );
 
-    assert(res.added_operations == added_operations);
-    assert(res.deleted_operations == deleted_operations);
-    assert(res.chanded_operations == chanded_operations);
-    assert(res.moved_operations == moved_operations);
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
 }
 
-void run_tests_address()
+void test_change_and_move_element2()
+{
+    std::cout << "test_change_and_move_element2" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 },
+        { "third", 3, 2 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "HI", 2, 0 },
+        { "first", 1, 1 },
+        { "third", 3, 2 }
+    };
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "second", 2, 1 }, Address{ "HI", 2, 0 }, 0, std::nullopt} };
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, { "HI", 2, 0 }, std::nullopt,  1, 0 } };
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_change_and_move_element()
+{
+    std::cout << "test_delete_change_and_move_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 }, // заменяем
+        { "second", 2, 1 }, // удаляем
+        { "third", 3, 2 },
+        { "fourth", 4, 3 } // передвигаем
+    };
+    auto updated = std::vector<Address>
+    {
+        { "fourth", 4, 0 },
+        { "first", 1, 1 },
+        { "Hi", 3, 2 }
+    };
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "second", 2, 1 }, std::nullopt, 1, std::nullopt}  };
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "third", 3, 2 }, Address{ "Hi", 3, 2 }, 2, std::nullopt} };
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, {  "fourth", 4, 0 }, std::nullopt,  2, 0 } };
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_delete_change_and_move_element2()
+{
+    std::cout << "test_delete_change_and_move_element2" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 },
+        { "second", 2, 1 }, // удаляем
+        { "third", 3, 2 },
+        { "fourth", 4, 3 } // заменяем и передвигаем
+    };
+    auto updated = std::vector<Address>
+    {
+        { "fourth", 4, 0 },
+        { "first", 1, 1 },
+        { "Hi", 3, 2 }
+    };
+
+    std::vector<OperationData<Address>> added_operations;
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, { "second", 2, 1 }, std::nullopt, 1, std::nullopt}  };
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "third", 3, 2 }, Address{ "Hi", 3, 2 }, 2, std::nullopt} };
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, {  "fourth", 4, 0 }, std::nullopt,  2, 0 } };
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_add_change_and_move_element()
+{
+    std::cout << "test_add_change_and_move_element" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 }, // заменяем
+        { "second", 2, 1 },
+        { "third", 3, 2 },  // передвигаем
+    };
+    auto updated = std::vector<Address>
+    {
+        { "HI", 1, 0 },
+        { "third", 3, 1 },
+        { "second", 2, 2 },
+        { "fourth", 4, 3 }
+    };
+
+    std::vector<OperationData<Address>> added_operations{ {OPERATION_TYPE::ADDED, { "fourth", 4, 3 }, std::nullopt, 3, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations;
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, {  "first", 1, 0 }, Address{ "HI", 1, 0 }, 0, std::nullopt} };
+    std::vector<OperationData<Address>> moved_operations{ { OPERATION_TYPE::MOVED, { "third", 3, 1 }, std::nullopt,  2, 1 } };
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+}
+
+void test_all_operations()
+{
+    std::cout << "test_all_operations" <<std::endl;
+    auto old = std::vector<Address>
+    {
+        { "first", 1, 0 }, // удалили
+        { "second", 2, 1 },
+        { "third", 3, 2 },
+        { "fourth", 4, 3 }
+    };
+    auto updated = std::vector<Address>
+    {
+        { "third", 3, 0 }, // переместили
+        { "second_new", 2, 1 }, // изменили
+        { "fourth", 4, 2 },
+        { "fifth", 5, 3 }, // добавили
+        { "sixth", 6, 4 } // добавили
+    };
+
+    std::vector<OperationData<Address>> added_operations{
+        {OPERATION_TYPE::ADDED, {  "fifth", 5, 3 }, std::nullopt, 3, std::nullopt},
+        {OPERATION_TYPE::ADDED, { "sixth", 6, 4 }, std::nullopt, 4, std::nullopt} };
+    std::vector<OperationData<Address>> deleted_operations{ {OPERATION_TYPE::DELETED, {"first", 1, 0 }, std::nullopt, 0, std::nullopt} };
+    std::vector<OperationData<Address>> chanded_operations{ {OPERATION_TYPE::CHANGED, { "second", 2, 1 }, Address{ "second_new", 2, 1 }, 1, std::nullopt} } ;
+    std::vector<OperationData<Address>> moved_operations{
+        {OPERATION_TYPE::MOVED, {  "fourth", 4, 2 }, std::nullopt,  4, 2 },
+        {OPERATION_TYPE::MOVED, {"third", 3, 0  }, std::nullopt,  1, 0 } };
+
+    auto res = DifferAddress().Compare( old, updated );
+
+    assert(res.mAddedOperations == added_operations);
+    assert(res.mDeletedOperations == deleted_operations);
+    assert(res.mChandedOperations == chanded_operations);
+    assert(res.mMovedOperations == moved_operations);
+
+    /* Проверка редакционного предписания
+    { "first", 1, 0 },
+    { "second", 2, 1 },
+    { "third", 3, 2 },
+    { "fourth", 4, 3 }
+
+    -----------Добавление элемента fifth, 5 на позицию 3
+
+    { "first", 1, 0 },
+    { "second", 2, 1 },
+    { "third", 3, 2 },
+    {  "fifth", 5, 3 }
+    { "fourth", 4, 4 }
+
+    -----------Добавление элемента sixth, 6 на позицию 4
+
+    { "first", 1, 0 },
+    { "second", 2, 1 },
+    { "third", 3, 2 },
+    {  "fifth", 5, 3 }
+    { "sixth", 6, 4 }
+    { "fourth", 4, 5 }
+
+    -----------Удаление элемента first, 1
+
+    { "second", 2, 0 },
+    { "third", 3, 1 },
+    {  "fifth", 5, 2 }
+    { "sixth", 6, 3 }
+    { "fourth", 4, 4 }
+
+     ----------- Изменение элемента second, 2 на second_new
+
+    { "second_new", 2, 0 },
+    { "third", 3, 1 },
+    {  "fifth", 5, 2 }
+    { "sixth", 6, 3 }
+    { "fourth", 4, 4 }
+
+     ----------- Перемещение элемента fourth, 4 с позиции 4 на позицию 2
+
+
+    { "second_new", 2, 0 },
+    { "third", 3, 1 },
+    { "fourth", 4, 2 }
+    {  "fifth", 5, 3 }
+    { "sixth", 6, 4 }
+
+    ----------- Перемещение элемента third, 3 с позиции 1 на позицию 0
+
+     { "third", 3, 0 },
+    { "second_new", 2, 1 },
+    { "fourth", 4, 2 }
+    {  "fifth", 5, 3 }
+    { "sixth", 6, 4 }
+
+           Совпали
+
+    { "third", 3, 0 },
+    { "second_new", 2, 1 },
+    { "fourth", 4, 2 },
+    { "fifth", 5, 3 },
+    { "sixth", 6, 4 }
+
+    */
+}
+
+void run_simple_tests()
 {
     test_full_delete_address();
+    test_delete_address_from_the_beginning();
+    test_delete_address_from_the_end();
+    test_delete_address_from_the_middle();
     test_full_add_address();
+    test_add_address_at_the_beginning();
+    test_add_address_at_the_end();
     test_change_address();
     test_moved_address();
-    test_same_address();
+    test_no_changes();
     test_repeat_string_address();
 }
 
-int main() {
-    run_tests_address();
+void run_complex_tests()
+{
+    test_delete_and_add_element();
+    test_delete_and_add_element2();
+    test_delete_and_change_element();
+    test_delete_and_move_element();
+    test_add_and_change_element();
+    test_add_and_move_element();
+    test_change_and_move_element();
+    test_change_and_move_element2();
+    test_delete_change_and_move_element();
+    test_delete_change_and_move_element2();
+    test_add_change_and_move_element();
+    test_all_operations();
+}
+
+int main()
+{
+    run_simple_tests();
+    run_complex_tests();
 }
