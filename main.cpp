@@ -47,6 +47,9 @@ void test_full_delete_address()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_address_from_the_beginning()
@@ -60,8 +63,8 @@ void test_delete_address_from_the_beginning()
     };
     auto updated = std::vector<Address>
     {
-        { "second", 2, 1 },
-        { "third", 3, 2 }
+        { "second", 2, 0 },
+        { "third", 3, 1 }
     };
 
     SortIfNot( old );
@@ -78,6 +81,9 @@ void test_delete_address_from_the_beginning()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_address_from_the_end()
@@ -109,6 +115,9 @@ void test_delete_address_from_the_end()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_address_from_the_middle()
@@ -123,7 +132,7 @@ void test_delete_address_from_the_middle()
     auto updated = std::vector<Address>
     {
         { "first", 1, 0 },
-        { "third", 3, 2 }
+        { "third", 3, 1 }
     };
 
     SortIfNot( old );
@@ -140,6 +149,9 @@ void test_delete_address_from_the_middle()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_address_from_the_begining_and_end()
@@ -172,6 +184,9 @@ void test_delete_address_from_the_begining_and_end()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_full_add_address()
@@ -199,6 +214,9 @@ void test_full_add_address()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_add_address_at_the_beginning()
@@ -232,6 +250,9 @@ void test_add_address_at_the_beginning()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_add_address_at_the_end()
@@ -265,6 +286,9 @@ void test_add_address_at_the_end()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_add_address_at_the_middle()
@@ -298,6 +322,9 @@ void test_add_address_at_the_middle()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_change_address()
@@ -330,6 +357,9 @@ void test_change_address()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_moved_address()
@@ -359,6 +389,9 @@ void test_moved_address()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_no_changes()
@@ -388,6 +421,9 @@ void test_no_changes()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_repeat_string_address()
@@ -418,6 +454,9 @@ void test_repeat_string_address()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_and_add_element()
@@ -446,6 +485,9 @@ void test_delete_and_add_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_and_add_element2()
@@ -476,6 +518,9 @@ void test_delete_and_add_element2()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_and_change_element()
@@ -504,6 +549,9 @@ void test_delete_and_change_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_and_move_element()
@@ -536,6 +584,9 @@ void test_delete_and_move_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_add_and_change_element()
@@ -566,6 +617,9 @@ void test_add_and_change_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_add_and_move_element()
@@ -596,6 +650,9 @@ void test_add_and_move_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_change_and_move_element()
@@ -625,6 +682,9 @@ void test_change_and_move_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_change_and_move_element2()
@@ -654,6 +714,9 @@ void test_change_and_move_element2()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_change_and_move_element()
@@ -684,6 +747,9 @@ void test_delete_change_and_move_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_delete_change_and_move_element2()
@@ -714,6 +780,9 @@ void test_delete_change_and_move_element2()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_add_change_and_move_element()
@@ -744,6 +813,9 @@ void test_add_change_and_move_element()
     assert(res.mDeletedOperations == deleted_operations);
     assert(res.mChandedOperations == chanded_operations);
     assert(res.mMovedOperations == moved_operations);
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void test_all_operations()
@@ -846,6 +918,9 @@ void test_all_operations()
     { "sixth", 6, 4 }
 
     */
+
+    auto res_2 = DifferAddress().DoEditorialPrescription( res, old );
+    assert( res_2 == updated );
 }
 
 void run_simple_tests()

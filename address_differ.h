@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <optional>
 #include <cassert>
+#include <iostream>
 
 /* @brief Тип операции */
 enum class OPERATION_TYPE
@@ -75,7 +76,16 @@ struct Address
                this->mId == rhs.mId &&
                this->mPosition == rhs.mPosition;
     }
+
+    friend std::ostream& operator<<( std::ostream& os, const Address& address );
+
 };
+
+std::ostream& operator<<( std::ostream& os, const Address& address )
+{
+    os << "Address: value = " << address.mValue << "  id = " << address.mId;
+    return os;
+}
 
 /* Enum определяет направление сдвига */
 enum class DIRECTION
@@ -121,6 +131,13 @@ public:
      * @param compare_result Результат сравнения.
      */
     void PrintEditorialPrescription( const CompareResult< Address >& compare_result );
+
+    /*
+     * @brief Выполняет редакционное предписание для массива адресов.
+     * @param compare_result Редакционное предписание.
+     * @param old_adresses Начальный массив адресов.
+     */
+    std::vector< Address > DoEditorialPrescription( const CompareResult< Address >& compare_result, const std::vector< Address >& old_adresses );
 
 private:
 
@@ -256,8 +273,7 @@ CompareResult< Address > DifferAddress::Compare( const std::vector< Address >& o
 
     ChangeElementsAddressComparator< decltype ( old_addresses.begin() ) > change_element_comparator;
     /* Находим измененные элементы */
-    SetDifference( updated_addresses.begin(), updated_addresses.end(), old_addresses.begin(), old_addresses.end(), std::back_inserter( changed_elements ), change_element_comparator );
-
+    SetDifference( updated_addresses.begin(), updated_addresses.end(), old_copy.begin(), old_copy.end(), std::back_inserter( changed_elements ), change_element_comparator );
     for( const auto& elem: changed_elements )
     {
         auto old_el = std::find_if( old_addresses.begin(), old_addresses.end(), AddressIdComparator( elem.mId ) );
@@ -353,5 +369,95 @@ std::vector< ShiftDiff > DifferAddress::FormShifts( const std::vector< Address >
             }
         }
     }
+    return result;
+}
+
+void DifferAddress::PrintEditorialPrescription( const CompareResult< Address >& compare_result )
+{
+    for( const auto& elem : compare_result.mAddedOperations )
+    {
+        std::cout << " Added  " << elem.mValue << " to position " << elem.mPositionStart << std::endl;
+    }
+
+    for( const auto& elem : compare_result.mDeletedOperations )
+    {
+        std::cout << " Deleted  " << elem.mValue << std::endl;
+    }
+
+    for( const auto& elem : compare_result.mChandedOperations )
+    {
+        std::cout << "Changed  Old value:  " << elem.mValue << " New value " << *elem.mNewValue << std::endl;
+    }
+
+    for( const auto& elem : compare_result.mMovedOperations )
+    {
+        std::cout << " Moved  " << elem.mValue << " from position " << elem.mPositionStart << " to position " << *elem.mPositionEnd << std::endl;
+    }
+}
+
+std::vector< Address > DifferAddress::DoEditorialPrescription( const CompareResult< Address >& compare_result, const std::vector< Address >& old_adresses )
+{
+    std::vector< Address > result( old_adresses.begin(), old_adresses.end() );
+    for( const auto& elem : compare_result.mAddedOperations )
+    {
+        result.insert( result.begin() + elem.mPositionStart, elem.mValue );
+        std::cout << " Added  " << elem.mValue << " to position " << elem.mPositionStart << std::endl;
+    }
+
+    for( const auto& elem : compare_result.mDeletedOperations )
+    {
+        if( auto it = std::find_if( result.begin(), result.end(), [&elem]( const Address& address ){ return address.mId == elem.mValue.mId; } );
+            it != result.end() )
+        {
+            result.erase( it );
+            std::cout << " Deleted  " << elem.mValue << std::endl;
+        }
+        else
+        {
+            assert( false );
+        }
+    }
+
+    for( const auto& elem : compare_result.mChandedOperations )
+    {
+        if( auto it = std::find_if( result.begin(), result.end(), [&elem]( const Address& address ){ return address.mId == elem.mValue.mId; } );
+            it != result.end() )
+        {
+            it->mValue = elem.mNewValue->mValue;
+            std::cout << "Changed  Old value:  " << elem.mValue << " New value " << *elem.mNewValue << std::endl;
+        }
+        else
+        {
+            assert( false );
+        }
+    }
+
+    for( const auto& elem : compare_result.mMovedOperations )
+    {
+        if( !elem.mPositionEnd ) assert( false );
+
+        if( elem.mPositionStart > *elem.mPositionEnd )
+        {
+            for( int i = elem.mPositionStart; i > *elem.mPositionEnd; --i )
+            {
+                std::swap( result[ i - 1 ], result[ i ] );
+            }
+        }
+        if( elem.mPositionStart < *elem.mPositionEnd )
+        {
+            for( int i = elem.mPositionStart; i < *elem.mPositionEnd; ++i )
+            {
+                std::swap( result[ i + 1 ], result[ i ] );
+            }
+        }
+        std::cout << " Moved  " << elem.mValue << " from position " << elem.mPositionStart << " to position " << *elem.mPositionEnd << std::endl;
+    }
+
+    // Исправляю номера позиций
+    for( size_t i = 0; i < result.size(); ++i )
+    {
+        result[ i ].mPosition = i;
+    }
+
     return result;
 }
